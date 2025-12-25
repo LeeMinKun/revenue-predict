@@ -8,6 +8,12 @@ import os
 import gdown
 import shutil
 
+import os
+
+# Thiết lập JAVA_HOME để PySpark có thể tìm thấy Java sau khi cài đặt từ packages.txt
+if not os.environ.get("JAVA_HOME"):
+    os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-11-openjdk-amd64"
+
 # Cấu hình trang
 st.set_page_config(
     page_title="Dự Báo Doanh Thu Thương Mại Điện Tử",
