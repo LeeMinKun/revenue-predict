@@ -39,7 +39,7 @@ def load_model_full():
     return PipelineModel.load(model_path)
 
 def main():
-    st.title("🛒 Hệ Thống Hỗ Trợ Ra Quyết Định Dự Báo Doanh Thu")
+    st.title("🛒 Hệ Thống Dự Báo Doanh Thu")
     st.markdown("---")
     
     spark = init_spark()
