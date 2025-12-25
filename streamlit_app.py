@@ -12,8 +12,9 @@ from pyspark.ml import PipelineModel
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
 import gdown
 
-# Cấu hình trang
-st.set_page_config(page_title="Dự Báo Doanh Thu Thương Mại Điện Tử", layout="wide")
+
+# Cấu hình đường dẫn Java 17 cho Streamlit Cloud
+os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-17-openjdk-amd64"
 
 @st.cache_resource
 def init_spark():
