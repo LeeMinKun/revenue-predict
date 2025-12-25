@@ -35,31 +35,29 @@ def download_and_extract_model():
     model_dir = "models/random_forest_v1"
     zip_path = "model.zip"
     
-    # Nếu thư mục mô hình đã tồn tại, trả về đường dẫn luôn
     if os.path.exists(model_dir):
         return model_dir
     
-    # ID file ZIP mới bạn vừa cung cấp
+    # ID file ZIP của bạn
     file_id = "1vOwtKC0wc8CoUONJ6Z45wGLnfOkpQBpY"
-    url = f"https://drive.google.com/uc?id={file_id}"
     
     try:
-        # Bước 1: Tải file ZIP
-        with st.spinner("📦 Đang tải gói mô hình tối ưu..."):
-            gdown.download(url, zip_path, quiet=False)
+        # SỬA TẠI ĐÂY: Dùng id= thay vì url=
+        with st.spinner("📦 Đang tải gói mô hình từ Google Drive..."):
+            # gdown sẽ tự xử lý xác nhận file lớn khi dùng tham số id
+            gdown.download(id=file_id, output=zip_path, quiet=False)
         
-        # Bước 2: Giải nén
-        with st.spinner("📂 Đang giải nén mô hình..."):
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall("models/")
-        
-        # Xóa file zip sau khi giải nén để tiết kiệm dung lượng
         if os.path.exists(zip_path):
+            with st.spinner("📂 Đang giải nén..."):
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall("models/")
             os.remove(zip_path)
-            
-        return model_dir
+            return model_dir
+        else:
+            st.error("Không tìm thấy file tải về.")
+            return None
     except Exception as e:
-        st.error(f"Lỗi khi xử lý file mô hình: {e}")
+        st.error(f"Lỗi tải file: {e}")
         return None
 
 def main():
