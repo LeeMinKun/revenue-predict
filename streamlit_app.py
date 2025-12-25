@@ -1,7 +1,9 @@
 import os
 import sys
+import zipfile
+import shutil
 
-# Thiết lập Java 17 cho Streamlit Cloud
+# 1. Cấu hình Java 17 cho Streamlit Cloud
 os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-17-openjdk-amd64"
 
 import streamlit as st
@@ -10,108 +12,107 @@ from pyspark.ml import PipelineModel
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
 import gdown
 
-# Cấu hình giao diện
-st.set_page_config(page_title="Dự Báo Doanh Thu Thương Mại Điện Tử", layout="wide")
+# Cấu hình trang
+st.set_page_config(page_title="Dự Báo Doanh Thu", layout="wide")
 
 @st.cache_resource
 def init_spark():
     try:
+        # Cấu hình tối giản để tiết kiệm RAM trên Cloud
         spark = SparkSession.builder \
             .appName("RevenuePredictor") \
             .master("local[1]") \
-            .config("spark.driver.bindAddress", "127.0.0.1") \
+            .config("spark.driver.memory", "512m") \
+            .config("spark.ui.showConsoleProgress", "false") \
             .getOrCreate()
         return spark
     except Exception as e:
+        st.error(f"Lỗi khởi tạo Spark: {e}")
         return None
 
 @st.cache_resource
-def download_model():
-    model_path = "models/random_forest_v1"
-    if os.path.exists(model_path):
-        return model_path
-    folder_id = "1ESwDvLGSlxRXFgnNqW-LPC9ETZbN6tkQ"
-    os.makedirs("models", exist_ok=True)
-    url = f"https://drive.google.com/drive/folders/{folder_id}"
+def download_and_extract_model():
+    model_dir = "models/random_forest_v1"
+    zip_path = "model.zip"
+    
+    # Nếu thư mục mô hình đã tồn tại, trả về đường dẫn luôn
+    if os.path.exists(model_dir):
+        return model_dir
+    
+    # ID file ZIP mới bạn vừa cung cấp
+    file_id = "1vOwtKC0wc8CoUONJ6Z45wGLnfOkpQBpY"
+    url = f"https://drive.google.com/uc?id={file_id}"
+    
     try:
-        gdown.download_folder(url, output="models/", quiet=False, use_cookies=False)
-        return model_path
-    except:
+        # Bước 1: Tải file ZIP
+        with st.spinner("📦 Đang tải gói mô hình tối ưu..."):
+            gdown.download(url, zip_path, quiet=False)
+        
+        # Bước 2: Giải nén
+        with st.spinner("📂 Đang giải nén mô hình..."):
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall("models/")
+        
+        # Xóa file zip sau khi giải nén để tiết kiệm dung lượng
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+            
+        return model_dir
+    except Exception as e:
+        st.error(f"Lỗi khi xử lý file mô hình: {e}")
         return None
 
 def main():
     st.title("🛒 Hệ Thống Dự Báo Doanh Thu Thương Mại Điện Tử")
-    st.info("Mô hình sử dụng: Random Forest (R² ~ 96.6%)")
     
     spark = init_spark()
-    model_path = download_model()
+    model_path = download_and_extract_model()
     
-    if not spark or not model_path:
-        st.warning("Đang khởi tạo hệ thống...")
-        return
+    if spark and model_path:
+        try:
+            model = PipelineModel.load(model_path)
+            st.success("✅ Hệ thống đã sẵn sàng với mô hình tối ưu!")
+            
+            # Form nhập liệu
+            col1, col2 = st.columns(2)
+            with col1:
+                category = st.selectbox("Loại Sản Phẩm", ["Electronics", "Home & Kitchen", "Clothing", "Books", "Toys"])
+                region = st.selectbox("Khu Vực", ["North", "South", "East", "West"])
+                units_sold = st.number_input("Số Lượng Bán", min_value=1, value=100)
+                discount_applied = st.selectbox("Áp dụng giảm giá?", ["Yes", "No"])
 
-    try:
-        model = PipelineModel.load(model_path)
-        st.success("✅ Hệ thống đã sẵn sàng!")
-        
-        # Bố trí các ô nhập liệu
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            category = st.selectbox("Loại Sản Phẩm (Category)", ["Electronics", "Home & Kitchen", "Clothing", "Books", "Toys"])
-            region = st.selectbox("Khu Vực (Region)", ["North", "South", "East", "West"])
-            units_sold = st.number_input("Số Lượng Bán (Units Sold)", min_value=1, value=100)
-            discount_val = st.slider("Mức Giảm Giá (Discount %)", 0.0, 1.0, 0.1) # Thường là từ 0 đến 1 trong dữ liệu mẫu
+            with col2:
+                discount_val = st.slider("Mức Giảm Giá (0.0 - 1.0)", 0.0, 1.0, 0.1)
+                ad_spend = st.number_input("Chi Phí Quảng Cáo ($)", value=200.0)
+                clicks = st.number_input("Số Lượt Click", value=50)
+                shipping = st.number_input("Phí Vận Chuyển ($)", value=5.0)
 
-        with col2:
-            ad_spend = st.number_input("Chi Phí Quảng Cáo ($)", min_value=0.0, value=200.0)
-            clicks = st.number_input("Số Lượt Click (Clicks)", min_value=0, value=50) # THÊM BIẾN BỊ THIẾU
-            # Hai biến dưới đây có thể không dùng trong model nhưng dùng để tính lợi nhuận
-            reviews = st.slider("Đánh Giá (Reviews - tham khảo)", 1.0, 5.0, 4.0)
-            shipping = st.number_input("Phí Vận Chuyển ($)", value=5.0)
-
-        if st.button("🔮 Bắt Đầu Dự Báo", use_container_width=True):
-            # SCHEMA CHUẨN: Phải chứa các cột mà mô hình mong đợi
-            # Dựa trên notebook: Units_Sold, Discount_Applied, Ad_Spend, Clicks, Category, Region
-            schema = StructType([
-                StructField("Category", StringType(), True),
-                StructField("Region", StringType(), True),
-                StructField("Units_Sold", IntegerType(), True),
-                StructField("Discount_Applied", DoubleType(), True), # Tên cột trong mô hình là Discount_Applied
-                StructField("Ad_Spend", DoubleType(), True),
-                StructField("Clicks", DoubleType(), True), # Cột Clicks
-                # Thêm các cột phụ để tránh lỗi schema nếu mô hình có tham chiếu
-                StructField("Customer_Reviews", DoubleType(), True),
-                StructField("Shipping_Cost", DoubleType(), True)
-            ])
-            
-            input_data = [(
-                str(category), 
-                str(region), 
-                int(units_sold), 
-                float(discount_val), 
-                float(ad_spend), 
-                float(clicks),
-                float(reviews),
-                float(shipping)
-            )]
-            
-            df = spark.createDataFrame(input_data, schema)
-            
-            # Thực hiện transform (dự báo)
-            prediction_df = model.transform(df)
-            result = prediction_df.collect()[0]["prediction"]
-            
-            st.divider()
-            st.balloons()
-            st.header(f"📊 Doanh Thu Dự Báo: ${result:,.2f}")
-            
-            # Tính toán lợi nhuận
-            profit = result - (ad_spend + (shipping * units_sold))
-            st.subheader(f"💰 Lợi Nhuận Ước Tính: ${profit:,.2f}")
-
-    except Exception as e:
-        st.error(f"Đã xảy ra lỗi: {e}")
+            if st.button("🔮 Dự Báo Ngay", use_container_width=True):
+                # Định nghĩa Schema đầy đủ để khớp với Pipeline cũ
+                schema = StructType([
+                    StructField("Category", StringType(), True),
+                    StructField("Region", StringType(), True),
+                    StructField("Discount_Applied", StringType(), True),
+                    StructField("Units_Sold", IntegerType(), True),
+                    StructField("Discount", DoubleType(), True),
+                    StructField("Ad_Spend", DoubleType(), True),
+                    StructField("Clicks", DoubleType(), True),
+                    StructField("Customer_Reviews", DoubleType(), True), # Mặc định nếu model cần
+                    StructField("Shipping_Cost", DoubleType(), True)
+                ])
+                
+                input_data = [(str(category), str(region), str(discount_applied), int(units_sold), 
+                               float(discount_val), float(ad_spend), float(clicks), 4.0, float(shipping))]
+                
+                df = spark.createDataFrame(input_data, schema)
+                prediction = model.transform(df).collect()[0]["prediction"]
+                
+                st.divider()
+                st.balloons()
+                st.header(f"📊 Kết quả dự báo: ${prediction:,.2f}")
+                
+        except Exception as e:
+            st.error(f"Lỗi thực thi: {e}")
 
 if __name__ == "__main__":
     main()
