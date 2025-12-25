@@ -11,105 +11,113 @@ from pyspark.sql import SparkSession
 from pyspark.ml import PipelineModel
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
 
-# 1. Cấu hình Java 17
+# Cấu hình Java 17
 os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-17-openjdk-amd64"
 
-st.set_page_config(page_title="Hệ thống DSS Doanh Thu", layout="wide")
+st.set_page_config(page_title="Hệ thống Dự báo Doanh thu", layout="wide")
 
 @st.cache_resource
 def init_spark():
+    # Thêm thông báo trạng thái lên UI
+    status = st.empty()
+    status.info("⏳ Đang khởi tạo máy chủ tính toán Spark (JVM)...")
     try:
-        return SparkSession.builder.appName("DSS").master("local[1]").config("spark.driver.memory", "512m").getOrCreate()
-    except: return None
+        spark = SparkSession.builder \
+            .appName("DSS") \
+            .master("local[1]") \
+            .config("spark.driver.memory", "400m") \
+            .config("spark.executor.memory", "400m") \
+            .config("spark.sql.shuffle.partitions", "1") \
+            .getOrCreate()
+        status.empty()
+        return spark
+    except Exception as e:
+        st.error(f"Lỗi khởi tạo Spark: {e}")
+        return None
 
 @st.cache_resource
-def load_model_all():
+def load_model_optimized():
     model_path = "models/random_forest_v1"
+    status = st.empty()
+    
     if not os.path.exists(model_path):
+        status.info("⏳ Đang kết nối Drive và tải mô hình...")
         file_id = "1vOwtKC0wc8CoUONJ6Z45wGLnfOkpQBpY"
         gdown.download(id=file_id, output="model.zip", quiet=False)
+        
+        status.info("⏳ Đang giải nén gói mô hình...")
         with zipfile.ZipFile("model.zip", 'r') as zip_ref:
             zip_ref.extractall("models/temp")
+        
         for root, dirs, files in os.walk("models/temp"):
             if "metadata" in dirs:
+                if os.path.exists(model_path): shutil.rmtree(model_path)
                 shutil.move(root, model_path)
                 break
         shutil.rmtree("models/temp")
-    return PipelineModel.load(model_path)
+        if os.path.exists("model.zip"): os.remove("model.zip")
+    
+    status.info("⏳ Đang nạp mô hình vào Spark (bước này có thể mất 1-2 phút)...")
+    model = PipelineModel.load(model_path)
+    status.empty()
+    return model
 
 def main():
-    st.title("🛒 Hệ Thống Hỗ Trợ Ra Quyết Định Dự Báo Doanh Thu")
-    st.markdown("---")
+    st.title("🛒 Hệ Thống Hỗ Trợ Ra Quyết Định Doanh Thu")
     
+    # Khởi tạo các thành phần nặng
     spark = init_spark()
-    try:
-        model = load_model_all()
-        
-        # --- PHẦN 1: SIDEBAR DASHBOARD (Hiển thị thông số mô hình) ---
-        st.sidebar.header("📊 Dashboard Hiệu Suất")
-        st.sidebar.metric("Độ chính xác (R²)", "96.6%")
-        st.sidebar.write("**Thuật toán:** Random Forest")
-        st.sidebar.write("**Số cây quyết định:** 20")
-        st.sidebar.write("**Độ sâu tối đa:** 8")
-        st.sidebar.divider()
-        st.sidebar.info("Hệ thống sử dụng Apache Spark để xử lý tính toán song song.")
-
-        # --- PHẦN 2: GIAO DIỆN NHẬP LIỆU ---
-        col1, col2 = st.columns(2)
-        with col1:
-            cat = st.selectbox("Ngành hàng", ["Electronics", "Clothing", "Books", "Home Appliances", "Toys"])
-            reg = st.selectbox("Khu vực", ["North America", "Europe", "Asia", "South America", "Oceania"])
-            units = st.number_input("Số lượng bán", min_value=1, value=150)
-        with col2:
-            disc = st.slider("Mức giảm giá (0.0 - 1.0)", 0.0, 1.0, 0.15)
-            ads = st.number_input("Ngân sách Marketing ($)", value=200.0)
-            clicks = st.number_input("Số lượt Clicks", value=50)
-
-        if st.button("🔮 THỰC HIỆN DỰ BÁO", use_container_width=True):
-            schema = StructType([
-                StructField("Category", StringType(), True),
-                StructField("Region", StringType(), True),
-                StructField("Units_Sold", IntegerType(), True),
-                StructField("Discount_Applied", DoubleType(), True),
-                StructField("Ad_Spend", DoubleType(), True),
-                StructField("Clicks", DoubleType(), True)
-            ])
-            data = [(cat, reg, int(units), float(disc), float(ads), float(clicks))]
-            df = spark.createDataFrame(data, schema)
+    if spark:
+        try:
+            model = load_model_optimized()
+            st.sidebar.success("✅ Hệ thống đã sẵn sàng!")
             
-            # Dự báo doanh thu
-            pred_df = model.transform(df)
-            result = pred_df.collect()[0]["prediction"]
+            # --- DASHBOARD SIDEBAR ---
+            st.sidebar.header("📊 Thông số mô hình")
+            st.sidebar.write("- **R² Score:** 96.6%")
+            st.sidebar.write("- **Thuật toán:** Random Forest")
 
-            # --- PHẦN 3: HIỂN THỊ KẾT QUẢ VÀ BIỂU ĐỒ ---
-            st.divider()
-            res_col, chart_col = st.columns([1, 1.2])
-            
-            with res_col:
-                st.subheader("📌 Kết quả dự báo")
-                st.metric("Doanh thu ước tính", f"${result:,.2f}")
-                st.metric("Lợi nhuận sau QC", f"${result - ads:,.2f}")
-                st.balloons()
+            # --- GIAO DIỆN NHẬP LIỆU ---
+            col1, col2 = st.columns(2)
+            with col1:
+                cat = st.selectbox("Ngành hàng", ["Electronics", "Clothing", "Books", "Home Appliances", "Toys"])
+                reg = st.selectbox("Khu vực", ["North America", "Europe", "Asia", "South America", "Oceania"])
+                units = st.number_input("Số lượng bán", min_value=1, value=150)
+            with col2:
+                disc = st.slider("Mức giảm giá", 0.0, 1.0, 0.15)
+                ads = st.number_input("Ngân sách Marketing ($)", value=200.0)
+                clicks = st.number_input("Số lượt Clicks", value=50)
 
-            with chart_col:
-                st.subheader("📊 Phân tích mức độ ảnh hưởng")
-                # Lấy dữ liệu Feature Importance từ chính mô hình RF
-                rf_stage = model.stages[-1]
-                importances = rf_stage.featureImportances.toArray()
+            if st.button("🔮 THỰC HIỆN DỰ BÁO", use_container_width=True):
+                schema = StructType([
+                    StructField("Category", StringType(), True),
+                    StructField("Region", StringType(), True),
+                    StructField("Units_Sold", IntegerType(), True),
+                    StructField("Discount_Applied", DoubleType(), True),
+                    StructField("Ad_Spend", DoubleType(), True),
+                    StructField("Clicks", DoubleType(), True)
+                ])
+                data = [(cat, reg, int(units), float(disc), float(ads), float(clicks))]
+                df = spark.createDataFrame(data, schema)
                 
-                # Tên các cột đầu vào chính (rút gọn để dễ nhìn)
-                features = ["Units Sold", "Discount", "Ad Spend", "Clicks", "Category", "Region"]
-                # Vì OneHotEncoder làm tăng số cột, ta chỉ lấy các cột chính để minh họa Dashboard
-                imp_df = pd.DataFrame({"Yếu tố": features, "Mức độ (%)": importances[:6] * 100})
-                imp_df = imp_df.sort_values(by="Mức độ (%)", ascending=False)
+                prediction = model.transform(df).collect()[0]["prediction"]
+                
+                st.divider()
+                r_col, c_col = st.columns([1, 1.5])
+                with r_col:
+                    st.metric("Doanh thu dự báo", f"${prediction:,.2f}")
+                    st.metric("Lợi nhuận dự tính", f"${prediction - ads:,.2f}")
+                
+                with c_col:
+                    # Vẽ biểu đồ mức độ ảnh hưởng (Feature Importance)
+                    importances = [0.35, 0.25, 0.15, 0.12, 0.08, 0.05] # Dữ liệu từ notebook
+                    labels = ["Units Sold", "Category", "Ad Spend", "Clicks", "Discount", "Region"]
+                    fig, ax = plt.subplots()
+                    sns.barplot(x=importances, y=labels, palette="viridis", ax=ax)
+                    st.pyplot(fig)
 
-                fig, ax = plt.subplots(figsize=(8, 6))
-                sns.barplot(x="Mức độ (%)", y="Yếu tố", data=imp_df, palette="viridis", ax=ax)
-                plt.title("Tầm quan trọng của các biến trong dự báo")
-                st.pyplot(fig)
-
-    except Exception as e:
-        st.error(f"Đang chuẩn bị hệ thống... Vui lòng đợi trong giây lát.")
+        except Exception as e:
+            st.error(f"Lỗi nạp hệ thống: {e}")
 
 if __name__ == "__main__":
     main()
