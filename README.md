@@ -299,48 +299,17 @@ Nhấn nút **"🔮 DỰ BÁO DOANH THU"** để nhận:
 
 ---
 
-## 🔄 Cập Nhật Ứng Dụng
-
-### Để thay đổi code:
-
-1. Sửa file trên GitHub (hoặc push từ local)
-2. Streamlit Cloud sẽ **tự động deploy lại** trong 2-3 phút
-3. Không cần làm gì thêm!
-
-### Version History:
-
-- **v1.0** (Jan 2025): Phiên bản đầu tiên với Random Forest
-- *Coming soon:* Thêm tính năng so sánh nhiều kịch bản
-
----
-
 ## 👥 Tác Giả
 
 **Nhóm 1** - Phân tích dữ liệu lớn với Apache Spark
-
-**Thành viên:**
-- [Tên thành viên 1]
-- [Tên thành viên 2]
-- [Tên thành viên 3]
-
-**Giảng viên hướng dẫn:** [Tên giảng viên]
-
 ---
 
 ## 📧 Liên Hệ
 
 Nếu có câu hỏi hoặc gặp vấn đề:
-- 📧 Email: [your-email@example.com]
-- 💬 GitHub Issues: [Tạo issue tại đây](https://github.com/your-username/revenue-predictor-app/issues)
+- 📧 Email: cuongmvpdz1@gmail.com
 
 ---
-
-## 📄 License
-
-Dự án được thực hiện nhằm mục đích học tập và nghiên cứu ứng dụng Machine Learning trong kinh doanh thương mại điện tử.
-
----
-
 ## 🙏 Acknowledgments
 
 - **Apache Spark** - Framework xử lý dữ liệu lớn
@@ -350,17 +319,6 @@ Dự án được thực hiện nhằm mục đích học tập và nghiên cứ
 
 ---
 
-## 📊 Demo & Screenshots
-
-### Giao diện chính:
-![Demo App](https://via.placeholder.com/800x400?text=Demo+Screenshot)
-
-### Kết quả dự báo:
-![Results](https://via.placeholder.com/800x400?text=Prediction+Results)
-
-*(Thêm screenshots thực tế của app sau khi deploy)*
-
----
 
 **Dự án được thực hiện nhằm mục đích học tập và nghiên cứu ứng dụng ML trong kinh doanh. 🎉**
 
