@@ -1,17 +1,17 @@
 import os
 import sys
 
-# Cấu hình Java 17 cho Streamlit Cloud (Dựa trên log mới nhất của bạn)
+# Thiết lập Java 17 cho Streamlit Cloud
 os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-17-openjdk-amd64"
 
 import streamlit as st
-import pandas as pd
 from pyspark.sql import SparkSession
 from pyspark.ml import PipelineModel
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
 import gdown
 
-st.set_page_config(page_title="Dự Báo Doanh Thu", layout="wide")
+# Cấu hình giao diện
+st.set_page_config(page_title="Dự Báo Doanh Thu Thương Mại Điện Tử", layout="wide")
 
 @st.cache_resource
 def init_spark():
@@ -41,6 +41,7 @@ def download_model():
 
 def main():
     st.title("🛒 Hệ Thống Dự Báo Doanh Thu Thương Mại Điện Tử")
+    st.info("Mô hình sử dụng: Random Forest (R² ~ 96.6%)")
     
     spark = init_spark()
     model_path = download_model()
@@ -51,32 +52,35 @@ def main():
 
     try:
         model = PipelineModel.load(model_path)
-        st.success("✅ Mô hình đã sẵn sàng!")
+        st.success("✅ Hệ thống đã sẵn sàng!")
         
+        # Bố trí các ô nhập liệu
         col1, col2 = st.columns(2)
         
         with col1:
-            category = st.selectbox("Loại Sản Phẩm", ["Electronics", "Home & Kitchen", "Clothing", "Books", "Toys"])
+            category = st.selectbox("Loại Sản Phẩm (Category)", ["Electronics", "Home & Kitchen", "Clothing", "Books", "Toys"])
             region = st.selectbox("Khu Vực (Region)", ["North", "South", "East", "West"])
-            # THÊM BIẾN Discount_Applied (Trạng thái áp dụng giảm giá)
-            discount_applied = st.selectbox("Áp dụng giảm giá?", ["Yes", "No"]) 
-            units_sold = st.number_input("Số Lượng Bán", min_value=1, value=50)
-            
-        with col2:
-            discount = st.slider("Mức Giảm Giá (%)", 0.0, 50.0, 10.0)
-            ad_spend = st.number_input("Chi Phí Quảng Cáo ($)", min_value=0.0, value=500.0)
-            reviews = st.slider("Đánh Giá Khách Hàng", 1.0, 5.0, 4.0)
-            shipping = st.number_input("Chi Phí Vận Chuyển ($)", min_value=0.0, value=5.0)
+            units_sold = st.number_input("Số Lượng Bán (Units Sold)", min_value=1, value=100)
+            discount_val = st.slider("Mức Giảm Giá (Discount %)", 0.0, 1.0, 0.1) # Thường là từ 0 đến 1 trong dữ liệu mẫu
 
-        if st.button("🔮 Dự Báo Doanh Thu", use_container_width=True):
-            # Schema phải khớp tuyệt đối 8 cột mô hình yêu cầu
+        with col2:
+            ad_spend = st.number_input("Chi Phí Quảng Cáo ($)", min_value=0.0, value=200.0)
+            clicks = st.number_input("Số Lượt Click (Clicks)", min_value=0, value=50) # THÊM BIẾN BỊ THIẾU
+            # Hai biến dưới đây có thể không dùng trong model nhưng dùng để tính lợi nhuận
+            reviews = st.slider("Đánh Giá (Reviews - tham khảo)", 1.0, 5.0, 4.0)
+            shipping = st.number_input("Phí Vận Chuyển ($)", value=5.0)
+
+        if st.button("🔮 Bắt Đầu Dự Báo", use_container_width=True):
+            # SCHEMA CHUẨN: Phải chứa các cột mà mô hình mong đợi
+            # Dựa trên notebook: Units_Sold, Discount_Applied, Ad_Spend, Clicks, Category, Region
             schema = StructType([
                 StructField("Category", StringType(), True),
                 StructField("Region", StringType(), True),
-                StructField("Discount_Applied", StringType(), True), # <--- CỘT BỊ THIẾU
                 StructField("Units_Sold", IntegerType(), True),
-                StructField("Discount", DoubleType(), True),
+                StructField("Discount_Applied", DoubleType(), True), # Tên cột trong mô hình là Discount_Applied
                 StructField("Ad_Spend", DoubleType(), True),
+                StructField("Clicks", DoubleType(), True), # Cột Clicks
+                # Thêm các cột phụ để tránh lỗi schema nếu mô hình có tham chiếu
                 StructField("Customer_Reviews", DoubleType(), True),
                 StructField("Shipping_Cost", DoubleType(), True)
             ])
@@ -84,22 +88,30 @@ def main():
             input_data = [(
                 str(category), 
                 str(region), 
-                str(discount_applied), # <--- GIÁ TRỊ MỚI
                 int(units_sold), 
-                float(discount), 
+                float(discount_val), 
                 float(ad_spend), 
-                float(reviews), 
+                float(clicks),
+                float(reviews),
                 float(shipping)
             )]
             
             df = spark.createDataFrame(input_data, schema)
-            prediction = model.transform(df).collect()[0]["prediction"]
+            
+            # Thực hiện transform (dự báo)
+            prediction_df = model.transform(df)
+            result = prediction_df.collect()[0]["prediction"]
             
             st.divider()
-            st.header(f"📊 Doanh thu dự báo: ${prediction:,.2f}")
+            st.balloons()
+            st.header(f"📊 Doanh Thu Dự Báo: ${result:,.2f}")
+            
+            # Tính toán lợi nhuận
+            profit = result - (ad_spend + (shipping * units_sold))
+            st.subheader(f"💰 Lợi Nhuận Ước Tính: ${profit:,.2f}")
 
     except Exception as e:
-        st.error(f"Lỗi: {e}")
+        st.error(f"Đã xảy ra lỗi: {e}")
 
 if __name__ == "__main__":
     main()
