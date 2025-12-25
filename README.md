@@ -1,6 +1,4 @@
-# 🛒 Hệ Thống Dự Báo Doanh Thu Thương Mại Điện Tử
-
-Hệ thống hỗ trợ ra quyết định (DSS) sử dụng Apache Spark và Streamlit để dự báo doanh thu dựa trên các kịch bản chiến lược Marketing và vận hành bán lẻ.
+# 🛒 HỆ THỐNG DỰ BÁO DOANH SỐ
 
 ## 📋 Mục Lục
 - [Giới thiệu](#-giới-thiệu)
