@@ -107,33 +107,8 @@ revenue-predictor-app/
 
 Hệ thống đã được triển khai sẵn trên **Streamlit Cloud**. Bạn chỉ cần truy cập vào liên kết:
 
-🔗 **[https://your-app-url.streamlit.app](https://your-app-url.streamlit.app)**
+🔗 **https://revenue-predict-chtarmb5tkpkhvt4ewqwhp.streamlit.app/**
 
-### Phương án 2: Chạy trên Google Colab
-
-1. Upload file `Streamlit_App_Colab.ipynb` lên Google Colab
-2. Chạy lần lượt các cell trong notebook
-3. Lấy URL công khai và truy cập
-
-📖 **Xem chi tiết:** [QUICK_START.md](./QUICK_START.md)
-
-### Phương án 3: Chạy local
-
-```bash
-# Clone repository
-git clone https://github.com/your-username/revenue-predictor-app.git
-cd revenue-predictor-app
-
-# Cài đặt thư viện
-pip install -r requirements.txt
-
-# Chạy ứng dụng
-streamlit run streamlit_app.py
-```
-
-**Lưu ý:** Phải có thư mục `models/random_forest_v1/` trong cùng folder
-
----
 
 ## 🎮 Thao Tác Dự Báo
 
